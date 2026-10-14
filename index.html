@@ -117,7 +117,9 @@ async function undo(){if(busy||!hist.length)return;busy=true;const m=hist.pop();
 function reset(){if(busy)return;build();hist=[];moves=0;tNow=0;state='free';$('win').classList.remove('on');ui()}
 $('bScr').onclick=scramble;$('bAg').onclick=scramble;$('bSol').onclick=solve;$('bUn').onclick=undo;$('bRes').onclick=reset;
 /* ---------- camera + input ---------- */
-let th=.8,ph=1.08,tth=.8,tph=1.08,di=10,zm=1,drag=null;
+const oq=new THREE.Quaternion().setFromEuler(new THREE.Euler(-.5,.8,0,'YXZ')),toq=oq.clone(),dq=new THREE.Quaternion();let di=10,zm=1,drag=null;
+function orbitBy(dx,dy){const up=new THREE.Vector3(0,1,0).applyQuaternion(toq),rt=new THREE.Vector3(1,0,0).applyQuaternion(toq);
+ dq.setFromAxisAngle(up,-dx*.0065);toq.premultiply(dq);dq.setFromAxisAngle(rt,-dy*.0065);toq.premultiply(dq);toq.normalize()}
 const gl=$('gl'),ray=new THREE.Raycaster(),m2=new THREE.Vector2();
 const dist=()=>Math.max(10,10.5/cam.aspect)*zm;
 function ndc(e){m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam)}
@@ -129,7 +131,7 @@ gl.addEventListener('pointerdown',e=>{if(drag)return;gl.setPointerCapture(e.poin
  drag=h?{m:'pend',x:e.clientX,y:e.clientY,...h}:{m:'orb',lx:e.clientX,ly:e.clientY}});
 gl.addEventListener('pointermove',e=>{
  if(!drag){if(!busy)gl.style.cursor=pick(e)?'grab':'default';return}
- if(drag.m==='orb'){tth-=(e.clientX-drag.lx)*.0065;tph=clamp(tph-(e.clientY-drag.ly)*.0065,.2,Math.PI-.2);drag.lx=e.clientX;drag.ly=e.clientY;return}
+ if(drag.m==='orb'){orbitBy(e.clientX-drag.lx,e.clientY-drag.ly);drag.lx=e.clientX;drag.ly=e.clientY;return}
  const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
  if(drag.m==='pend'&&Math.hypot(dx,dy)>7){let b=null;const a0=scr(drag.p);
   [0,1,2].filter(i=>drag.n.getComponent(i)===0).forEach(i=>{const t=axv(i),d=scr(drag.p.clone().addScaledVector(t,.5)).sub(a0),ppu=d.length()/.5;d.normalize();
@@ -151,9 +153,9 @@ function resize(){DPR=Math.min(devicePixelRatio||1,2);W=sc.width=innerWidth*DPR;
 addEventListener('resize',resize);resize();di=dist();
 let last=performance.now();
 function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;
- if(!drag&&!RM)tth+=dt*.035;
- const k=Math.min(1,dt*8);th+=(tth-th)*k;ph+=(tph-ph)*k;di+=(dist()-di)*k;
- cam.position.set(di*Math.sin(ph)*Math.sin(th),di*Math.cos(ph),di*Math.sin(ph)*Math.cos(th));cam.lookAt(0,0,0);
+ if(!drag&&!RM){dq.setFromAxisAngle(new THREE.Vector3(0,1,0).applyQuaternion(toq),dt*.035);toq.premultiply(dq);toq.normalize()}
+ const k=Math.min(1,dt*8);oq.slerp(toq,k);di+=(dist()-di)*k;
+ cam.position.set(0,0,di).applyQuaternion(oq);cam.up.set(0,1,0).applyQuaternion(oq);cam.lookAt(0,0,0);
  warpT=busy?3.5:1;drawStars(dt);renderer.render(scene,cam);requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 })();
